@@ -9,8 +9,8 @@ def parse_books():
     url = 'https://books.toscrape.com/catalogue/page-1.html'
     books = []
     page_count = 0
-    rating_map = {'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5}
-    while url and page_count < 2:
+
+    while url and page_count < 3:
         page_count += 1 
         print(f'Страница: {page_count}, книг собрано: {len(books)}')
         response = requests.get(url)
@@ -26,10 +26,9 @@ def parse_books():
             book = BeautifulSoup(response.text, 'lxml')
             
             title = book.find('h1').text
-            price = book.find(class_='price_color').text.replace('Â£', '').replace('£', '')
-            rating = rating_map[book.find(class_='star-rating')['class'][1]]
-            in_stock_status = book.find(class_='instock availability').text.strip()
-            in_stock = 'In stock' in in_stock_status
+            price = book.find(class_='price_color').text.strip()
+            rating = book.find(class_='star-rating')['class'][1]
+            in_stock = book.find(class_='instock availability').text.strip()
             breadcrumb = book.find('ul', class_='breadcrumb')
             items = breadcrumb.find_all('li')
             category = items[2].text.strip()
@@ -42,14 +41,14 @@ def parse_books():
                 'category': category,
                 'upc': upc
             })
-            next_page = soup.find('li', class_='next')
+            
+        next_page = soup.find('li', class_='next')
+        if next_page:
+            href = next_page.find('a')['href']
+            url = urljoin(url, href)
+        else:
+            url = None
 
-            if next_page:
-                href = next_page.find('a')['href']
-                url = urljoin(url, href)
-            else:
-                url = None
-            time.sleep(0.5)
     return books
 
 def load_to_db(books):
@@ -66,9 +65,9 @@ def load_to_db(books):
         'create table if not exists raw_books (' \
         'upc text primary key, ' \
         'title text, ' \
-        'price numeric, ' \
-        'rating smallint, ' \
-        'in_stock boolean, ' \
+        'price text, ' \
+        'rating text, ' \
+        'in_stock text, ' \
         'category text,' \
         'parsed_at timestamp default now())'
     )

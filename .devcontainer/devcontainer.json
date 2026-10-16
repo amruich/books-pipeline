@@ -1,0 +1,7 @@
+{
+  "name": "Codespace + PostgreSQL",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "postgres",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [5432]
+}
