@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   postgres:
     image: postgres:16
@@ -10,6 +11,24 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  airflow:
+    image: apache/airflow:2.10.4
+    environment:
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:postgres@postgres/airflow_db
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - _PIP_ADDITIONAL_REQUIREMENTS=dbt-core dbt-postgres
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../scripts:/opt/airflow/scripts
+      - ../books_dbt:/opt/airflow/books_dbt
+    ports:
+      - "8080:8080"
+    command: standalone
+    depends_on:
+      - postgres
 
 volumes:
   pgdata:

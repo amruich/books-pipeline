@@ -56,7 +56,7 @@ def load_to_db(books):
         dbname='appdb',
         user='postgres',
         password='postgres',
-        host='localhost',
+        host='postgres',
         port=5432
     )
     cursor = conn.cursor()

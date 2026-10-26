@@ -1,7 +1,7 @@
 select 
     upc, 
     title, 
-    trim(price, 'Â£') as price,
+    replace(price, 'Â£', '')::numeric as price,
     case rating
         when 'One' then 1
         when 'Two' then 2
