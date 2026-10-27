@@ -1,18 +1,21 @@
-import requests 
+import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import time
-import psycopg2
-from psycopg2.extras import execute_values
+import logging
+
+from db_utils import load_data
+
+logging.basicConfig(level=logging.INFO)
 
 def parse_books():
     url = 'https://books.toscrape.com/catalogue/page-1.html'
     books = []
     page_count = 0
-
-    while url and page_count < 3:
+    rating_map = {'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5}
+    
+    while url and page_count < 2: 
         page_count += 1 
-        print(f'Страница: {page_count}, книг собрано: {len(books)}')
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'lxml')
 
@@ -22,67 +25,38 @@ def parse_books():
             href = card.find('h3').find('a')['href']
             book_url = urljoin(url, href)
 
-            response = requests.get(book_url)
-            book = BeautifulSoup(response.text, 'lxml')
+            book_response = requests.get(book_url)
+            book = BeautifulSoup(book_response.text, 'lxml')
             
             title = book.find('h1').text
-            price = book.find(class_='price_color').text.strip()
-            rating = book.find(class_='star-rating')['class'][1]
-            in_stock = book.find(class_='instock availability').text.strip()
+            price = book.find(class_='price_color').text.replace('Â£', '').replace('£', '')
+            rating = rating_map[book.find(class_='star-rating')['class'][1]]
+            in_stock_status = book.find(class_='instock availability').text.strip()
+            in_stock = 'In stock' in in_stock_status
             breadcrumb = book.find('ul', class_='breadcrumb')
-            items = breadcrumb.find_all('li')
-            category = items[2].text.strip()
+            category = breadcrumb.find_all('li')[2].text.strip()
             upc = book.find('td').text
-            books.append({
-                'title': title,
-                'price': price,
-                'rating': rating,
-                'in_stock': in_stock,
-                'category': category,
-                'upc': upc
-            })
             
+            books.append((upc, title, price, rating, in_stock, category))
+            time.sleep(0.1)
+        logging.info(f'Страница: {page_count}, книг собрано: {len(books)}')
         next_page = soup.find('li', class_='next')
         if next_page:
             href = next_page.find('a')['href']
             url = urljoin(url, href)
         else:
             url = None
-
+            
     return books
 
 def load_to_db(books):
-    conn = psycopg2.connect(
-        dbname='appdb',
-        user='postgres',
-        password='postgres',
-        host='postgres',
-        port=5432
+    load_data(
+        table_name='raw_books',
+        columns=['upc', 'title', 'price', 'rating', 'in_stock', 'category'],
+        data=books,
+        conflict_target='upc'
     )
-    cursor = conn.cursor()
-
-    cursor.execute('' \
-        'create table if not exists raw_books (' \
-        'upc text primary key, ' \
-        'title text, ' \
-        'price text, ' \
-        'rating text, ' \
-        'in_stock text, ' \
-        'category text,' \
-        'parsed_at timestamp default now())'
-    )
-    values = [(book['upc'], book['title'], book['price'], book['rating'], book['in_stock'], book['category']) for book in books]
-    
-    execute_values(cursor, 
-                   'insert into raw_books (upc, title, price, rating, in_stock, category) ' \
-                    'VALUES %s on conflict (upc) do nothing', 
-                    values)
-
-    conn.commit()
-
-    cursor.close()
-    conn.close()
 
 if __name__ == "__main__":
-    books = parse_books()
-    load_to_db(books)
+    parsed_books = parse_books()
+    load_to_db(parsed_books)
